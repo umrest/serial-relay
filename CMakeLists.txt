@@ -1,19 +1,20 @@
 cmake_minimum_required(VERSION 2.8)
 set (CMAKE_CXX_STANDARD 11)
-project( vision )
+project( serial_relay )
 
-file(GLOB vision_SRC
+file(GLOB serial_relay_SRC
     "include/*.h"
     "src/*.cpp"
 )
 
-include_directories( include )
+find_package( Boost COMPONENTS filesystem system REQUIRED )
+find_package (Threads REQUIRED)
 
-find_package( OpenCV REQUIRED )
-find_package( apriltag REQUIRED apriltag)
-find_package( Threads )
+include_directories( include 
+ ${BOOST_INCLUDE_DIRS})
 
 
-add_executable( vision ${vision_SRC} )
+add_executable( serial_relay ${serial_relay_SRC} )
 
-target_link_libraries( vision ${OpenCV_LIBS} apriltag )
+target_link_libraries( serial_relay 
+${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
