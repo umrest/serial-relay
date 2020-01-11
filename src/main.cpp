@@ -1,6 +1,11 @@
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio/serial_port.hpp>
+
+#include <boost/array.hpp>
+
+#include <comm/CommunicationDefinitions.h>
+
 #include <iostream>
 
 #include <chrono>
@@ -11,7 +16,11 @@
 class SerialRelay {
     public:
     int baud = 115200;
-    std::string port = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__Arduino_Uno_75438313733351D06252-if00";
+    // Arduino test board
+    //std::string port = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__Arduino_Uno_75438313733351D06252-if00";
+
+    // Hero
+    std::string port = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0";
 
     boost::asio::io_service    io_service;
     boost::asio::ip::tcp::socket socket;
@@ -28,14 +37,13 @@ class SerialRelay {
        socket_reconnect();
        serial_reconnect();
 
-       serial_read();
-       socket_read();
     }
 
    
 
     void handle_serial_receive(const boost::system::error_code& ec, std::size_t bytes_transferred){
         if(!ec){
+            std::cout << "Serial: Recieved Packet" << std::endl;
             boost::system::error_code ec2;
             socket.write_some(boost::asio::buffer(serial_buffer, bytes_transferred), ec2);
             if(ec2){
@@ -47,7 +55,6 @@ class SerialRelay {
             std::cout << "Serial: Disconnected" << std::endl;
             serial.close();
             serial_reconnect();
-            serial_read();
         }
     }
 
@@ -56,6 +63,7 @@ class SerialRelay {
     void handle_socket_receive(const boost::system::error_code& ec, std::size_t bytes_transferred){
         if(!ec){
             boost::system::error_code ec2;
+            std::cout << "Serial write" << std::endl;
             serial.write_some(boost::asio::buffer(socket_buffer, bytes_transferred), ec2);
             if(ec2){
                 serial_connected = false;
@@ -66,7 +74,6 @@ class SerialRelay {
             std::cout << "Socket: Disconnected" << std::endl;
             socket.close();
             socket_reconnect();
-            socket_read();
         }
     }
 
@@ -94,11 +101,13 @@ class SerialRelay {
             serial.set_option(baud_rate);
             serial_connected = true;
             std::cout << "Serial: Reconnect Succeeded" << std::endl;
+            serial_read();
         }
         else{
             serial_connected = false;
             std::cout << "Serial: Reconnect Failed" << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));
+            serial_reconnect();
         }
     }
 
@@ -114,12 +123,19 @@ class SerialRelay {
             char identifier[128];
             identifier[0] = 250;
             identifier[1] = 3;
-            socket.write_some(boost::asio::buffer(identifier, 128));
+
+            boost::array<boost::asio::const_buffer, 2> d = {
+            boost::asio::buffer(comm::CommunicationDefinitions::key, 3),
+            boost::asio::buffer(identifier, 128) };
+            
+            socket.write_some(d);
+            socket_read();
         }
         else{
             socket_connected = false;
             std::cout << "Socket: Reconnect Failed" << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));
+            socket_reconnect();
         }
     }
 
