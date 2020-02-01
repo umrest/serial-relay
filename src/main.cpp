@@ -132,13 +132,18 @@ public:
             std::cout << "Socket: Reconnect Succeeded" << std::endl;
 
             comm::Identifier identifier;
-            identifier.identifier = (uint8_t)comm::CommunicationDefinitions::IDENTIFIER::TCPSERIAL;
+		    identifier.identifier = (uint8_t)comm::CommunicationDefinitions::IDENTIFIER::TCPSERIAL;
+
+            auto data = identifier.Serialize();
+
+            boost::system::error_code ec;
 
             boost::array<boost::asio::const_buffer, 2> d = {
                 boost::asio::buffer(comm::CommunicationDefinitions::key, 3),
-                boost::asio::buffer(identifier.Serialize())};
+                boost::asio::buffer(data, data.size())};
 
-            socket.write_some(d);
+            int bytesTransferred = socket.write_some(d, ec);
+
             socket_read();
         }
         else
