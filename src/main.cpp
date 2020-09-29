@@ -15,12 +15,12 @@
 class SerialRelay
 {
 public:
-    int baud = 115200;
-    // Arduino test board
-    //std::string port = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__Arduino_Uno_75438313733351D06252-if00";
-
     // Hero
-    std::string port = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0";
+    std::string serial_device;
+    std::string ip;
+    int baud;
+    int port;
+    comm::CommunicationDefinitions::IDENTIFIER identifier_id;
 
     boost::asio::io_service io_service;
     boost::asio::ip::tcp::socket socket;
@@ -33,7 +33,7 @@ public:
     bool socket_connected = false;
     bool serial_connected = false;
 
-    SerialRelay(std::string ip, int port, std::string serial_device, int baud) : socket(io_service), serial(io_service)
+    SerialRelay(std::string _ip, int _port, std::string _serial_device, int _baud, comm::CommunicationDefinitions::IDENTIFIER _identifier_id) : socket(io_service), serial(io_service), serial_device(_serial_device), ip(_ip), port(_port), baud(_baud), identifier_id(_identifier_id)
     {
         socket_reconnect();
         serial_reconnect();
@@ -43,7 +43,6 @@ public:
     {
         if (!ec)
         {
-            std::cout << "Serial: Recieved Packet" << std::endl;
             boost::system::error_code ec2;
             socket.write_some(boost::asio::buffer(serial_buffer, bytes_transferred), ec2);
             if (ec2)
@@ -65,7 +64,6 @@ public:
         if (!ec)
         {
             boost::system::error_code ec2;
-            std::cout << "Serial write" << std::endl;
             serial.write_some(boost::asio::buffer(socket_buffer, bytes_transferred), ec2);
             if (ec2)
             {
@@ -101,7 +99,7 @@ public:
     {
         boost::system::error_code ec;
 
-        serial.open(port, ec);
+        serial.open(serial_device, ec);
 
         if (!ec)
         {
@@ -124,7 +122,7 @@ public:
     {
         boost::system::error_code ec;
 
-        socket.connect(boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string("127.0.0.1"), 8091), ec);
+        socket.connect(boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string(ip), port), ec);
 
         if (!ec)
         {
@@ -132,15 +130,19 @@ public:
             std::cout << "Socket: Reconnect Succeeded" << std::endl;
 
             comm::Identifier identifier;
-		    identifier.identifier = (uint8_t)comm::CommunicationDefinitions::IDENTIFIER::TCPSERIAL;
+		    identifier.set_identifier((uint8_t)identifier_id);
 
             auto data = identifier.Serialize();
 
+            std::vector<uint8_t> type;
+            type.push_back((uint8_t)comm::CommunicationDefinitions::TYPE::IDENTIFIER);
+
             boost::system::error_code ec;
 
-            boost::array<boost::asio::const_buffer, 2> d = {
+            boost::array<boost::asio::const_buffer, 3> d = {
                 boost::asio::buffer(comm::CommunicationDefinitions::key, 3),
-                boost::asio::buffer(data, data.size())};
+                boost::asio::buffer(type, type.size()),
+                boost::asio::buffer(data, data.size()) };
 
             int bytesTransferred = socket.write_some(d, ec);
 
@@ -161,8 +163,16 @@ public:
     }
 };
 
-int main()
+int main(int argc, char *argv[])
 {
-    SerialRelay sr("127.0.0.1", 8091, "/dev/serial/by-id/...", 115200);
+    std::string identifier(argv[2]);
+    comm::CommunicationDefinitions::IDENTIFIER identifier_id;
+    if(identifier == "hardware"){
+        identifier_id = comm::CommunicationDefinitions::IDENTIFIER::HARDWARE;
+    }
+    if(identifier == "hero"){
+        identifier_id = comm::CommunicationDefinitions::IDENTIFIER::TCPSERIAL;
+    }
+    SerialRelay sr("127.0.0.1", 8091, std::string(argv[1]), 115200, identifier_id);
     sr.run();
 }
